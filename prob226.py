@@ -9,6 +9,7 @@ from __future__ import division
 
 import numpy as np
 from scipy.signal import cspline1d, cspline1d_eval
+import scipy.interpolate
 
 # Experiment parameters
 CIRCLE_RADIUS   = 0.25
@@ -21,16 +22,6 @@ def pol2rec(r, theta):
     Convert polar coordinates to their rectangular form
     """
     return r*np.cos(theta), r*np.sin(theta) 
-
-def mc_blanc(x):
-    """
-    Generate values of the blancmage curve at the specified points
-    Specify the value of d to use for the blancmage curve calculation
-    if desired.
-    """
-
-    cj = cspline1d(y_blanc)
-    return cspline1d_eval(cj, x, dx=x_blanc[1]-x_blanc[0], x0=x_blanc[0])
 
 def blanc(d):
     """
@@ -78,7 +69,7 @@ def mc_int(n):
     x_m, y_m = gen_points(n)
 
     # Get the value of the blancmage curve at these points
-    y_b = mc_blanc(x_m)
+    y_b = compute_y(x_m)
 
     return np.ma.MaskedArray(np.ones(n), mask=y_b>y_m).count()
 
@@ -94,7 +85,7 @@ def diagnose(n):
                 radius=CIRCLE_RADIUS, fill=False))
     x_d, y_d = gen_points(n)
     pylab.plot(x_d, y_d, '.')
-    y_b = mc_blanc(x_d)
+    y_b = compute_y(x_d)
     pylab.plot(x_d, y_b, '.') 
     pylab.show()
     return y_d, y_b
@@ -134,3 +125,4 @@ def solve(points_per_trial, continuous=False, total_points=0,
     return area
 
 x_blanc, y_blanc = blanc(21)
+compute_y        = scipy.interpolate.interp1d(x_blanc, y_blanc)
