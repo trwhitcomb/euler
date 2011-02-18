@@ -54,8 +54,10 @@ def gen_points(n):
     rad   = np.random.rand(n)
     angle = np.random.rand(n)
     
-    # Normalize for the appropriate ranges
-    rad   = rad   * CIRCLE_RADIUS
+    # Normalize for the appropriate ranges - make sure that the 
+    # distribution is proper
+    # (see http://mathworld.wolfram.com/DiskPointPicking.html
+    rad   = np.sqrt(rad*(CIRCLE_RADIUS**2))
     angle = angle * 2*np.pi
     
     # Convert to rectangular coordinates
