@@ -5,23 +5,13 @@ Find areal intersection of a circle and the Blancmage curge
 
 """
 
-from __future__ import division
-
 import numpy as np
-from scipy.signal import cspline1d, cspline1d_eval
 import scipy.interpolate
 
 # Experiment parameters
 CIRCLE_RADIUS   = 0.25
 CIRCLE_CENTER_X = 0.25
 CIRCLE_CENTER_Y = 0.5
-CIRCLE_AREA     = np.pi * CIRCLE_RADIUS * CIRCLE_RADIUS
-
-def pol2rec(r, theta):
-    """
-    Convert polar coordinates to their rectangular form
-    """
-    return r*np.cos(theta), r*np.sin(theta) 
 
 def blanc(d):
     """
@@ -38,91 +28,27 @@ def blanc(d):
     # b is calculated, now normalize to the unit interval
     return np.linspace(0.0, 1.0, num=N+1), b * 2**(-(d+1))
 
-def gen_points(n):
-    """
-    Generate n random points within the circle
-    """
-    rad   = np.random.rand(n)
-    angle = np.random.rand(n)
-    
-    # Normalize for the appropriate ranges - make sure that the 
-    # distribution is proper
-    # (see http://mathworld.wolfram.com/DiskPointPicking.html
-    rad   = np.sqrt(rad*(CIRCLE_RADIUS**2))
-    angle = angle * 2*np.pi
-    
-    # Convert to rectangular coordinates
-    x, y = pol2rec(rad, angle)
+def between_curves():
+    # Return the distance between the circle and the Blancmange curve
+    # at each point within the first half of the interval
 
-    # Recenter the circle
-    x += CIRCLE_CENTER_X
-    y += CIRCLE_CENTER_Y
+    x_trim   = x_blanc[x_blanc <= 0.5]
+    y_trim   = y_blanc[x_blanc <= 0.5]
 
-    return x, y
+    # Equation for the circle is
+    # (x-x_center)**2 + (y-y_center)**2 = radius**2
+    y_circle = (-np.sqrt(CIRCLE_RADIUS**2 - (x_trim - CIRCLE_CENTER_X)**2) + 
+                CIRCLE_CENTER_Y)
 
-def mc_int(n):
-    """
-    Integrate the intersection using Monte Carlo methods with n sample points
-    """
-    
-    # Generate random points within the circle
-    x_m, y_m = gen_points(n)
+    new_x = x_trim[y_trim >= y_circle]
+    new_y = y_trim[y_trim >= y_circle]
+    distance = (y_trim - y_circle)[y_trim >= y_circle]
 
-    # Get the value of the blancmage curve at these points
-    y_b = compute_y(x_m)
+    area = np.trapz(distance, new_x)
+    print area
 
-    return np.ma.MaskedArray(np.ones(n), mask=y_b>y_m).count()
+if __name__ == "__main__":
+    for i in range(22, 30):
+        x_blanc, y_blanc = blanc(i)
+        between_curves()
 
-def diagnose(n):
-    """
-    Show this taking place
-    """
-    from matplotlib.patches import Circle
-    import pylab
-    pylab.plot(x_blanc, y_blanc)
-    a = pylab.gca()
-    a.add_patch(Circle((CIRCLE_CENTER_X, CIRCLE_CENTER_Y),
-                radius=CIRCLE_RADIUS, fill=False))
-    x_d, y_d = gen_points(n)
-    pylab.plot(x_d, y_d, '.')
-    y_b = compute_y(x_d)
-    pylab.plot(x_d, y_b, '.') 
-    pylab.show()
-    return y_d, y_b
-
-def update(total, under_curve, prev_area):
-    """
-    Updates the area guess and the error
-    """
-    area = CIRCLE_AREA * under_curve / total
-    abs_error = np.abs(prev_area - area)
-    print('%d %d %11.10f %11.10f' % (total, under_curve, area, abs_error))
-    return area, abs_error
-
-def solve(points_per_trial, continuous=False, total_points=0, 
-          points_within_curve=0):
-    """
-    Solve the problem, using the given number of trials for the Monte
-    Carlo integration
-    """
-
-    err                 = 1
-    area = 1.0
-
-    if continuous:
-        def cont_exp(err):
-            return True
-    else:
-        def cont_exp(err):
-            return err > 1.0E-10
-
-    while cont_exp(err):
-        total_points        += points_per_trial
-        points_within_curve += mc_int(points_per_trial)
-        area,err = update(total_points, points_within_curve, area)
-         
-    print(area)
-    return area
-
-x_blanc, y_blanc = blanc(21)
-compute_y        = scipy.interpolate.interp1d(x_blanc, y_blanc)
