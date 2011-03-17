@@ -16,96 +16,13 @@ V_0 = 20.0      # meters/second
 
 G = -9.81       # meters/second^2
 
-TIME_SAMPLE_COUNT  = 100
-ANGLE_SAMPLE_COUNT = 25
+TIME_SAMPLE_COUNT  = 20000
+ANGLE_SAMPLE_COUNT = 2000
 MIN_ANGLE          = 0.0
 MAX_ANGLE          = np.pi/2
 
-######################################################################
+X_POINTS = 20000
 
-import numpy as n, pylab as p, time
-
-def _angle_to_point(point, centre):
-    '''calculate angle in 2-D between points and x axis'''
-    delta = point - centre
-    res = n.arctan(delta[1] / delta[0])
-    if delta[0] < 0:
-        res += n.pi
-    return res
-
-
-def _draw_triangle(p1, p2, p3, **kwargs):
-    tmp = n.vstack((p1,p2,p3))
-    x,y = [x[0] for x in zip(tmp.transpose())]
-    p.fill(x,y, **kwargs)
-    #time.sleep(0.2)
-
-
-def area_of_triangle(p1, p2, p3):
-    '''calculate area of any triangle given co-ordinates of the corners'''
-    return n.linalg.norm(n.cross((p2 - p1), (p3 - p1)))/2.
-
-
-def convex_hull(points, graphic=True, smidgen=0.0075):
-    '''Calculate subset of points that make a convex hull around points
-
-Recursively eliminates points that lie inside two neighbouring points until only convex hull is remaining.
-
-:Parameters:
-    points : ndarray (2 x m)
-        array of points for which to find hull
-    graphic : bool
-        use pylab to show progress?
-    smidgen : float
-        offset for graphic number labels - useful values depend on your data range
-
-:Returns:
-    hull_points : ndarray (2 x n)
-        convex hull surrounding points
-'''
-    if graphic:
-        p.clf()
-        p.plot(points[0], points[1], 'ro')
-    n_pts = points.shape[1]
-    assert(n_pts > 5)
-    centre = points.mean(1)
-    if graphic: p.plot((centre[0],),(centre[1],),'bo')
-    angles = n.apply_along_axis(_angle_to_point, 0, points, centre)
-    pts_ord = points[:,angles.argsort()]
-    if graphic:
-        for i in xrange(n_pts):
-            p.text(pts_ord[0,i] + smidgen, pts_ord[1,i] + smidgen, \
-                   '%d' % i)
-    pts = [x[0] for x in zip(pts_ord.transpose())]
-    prev_pts = len(pts) + 1
-    k = 0
-    while prev_pts > n_pts:
-        prev_pts = n_pts
-        n_pts = len(pts)
-        if graphic: p.gca().patches = []
-        i = -2
-        while i < (n_pts - 2):
-            Aij = area_of_triangle(centre, pts[i],     pts[(i + 1) % n_pts])
-            Ajk = area_of_triangle(centre, pts[(i + 1) % n_pts], \
-                                   pts[(i + 2) % n_pts])
-            Aik = area_of_triangle(centre, pts[i],     pts[(i + 2) % n_pts])
-            if graphic:
-                _draw_triangle(centre, pts[i], pts[(i + 1) % n_pts], \
-                               facecolor='blue', alpha = 0.2)
-                _draw_triangle(centre, pts[(i + 1) % n_pts], \
-                               pts[(i + 2) % n_pts], \
-                               facecolor='green', alpha = 0.2)
-                _draw_triangle(centre, pts[i], pts[(i + 2) % n_pts], \
-                               facecolor='red', alpha = 0.2)
-            if Aij + Ajk < Aik:
-                if graphic: p.plot((pts[i + 1][0],),(pts[i + 1][1],),'go')
-                del pts[i+1]
-            i += 1
-            n_pts = len(pts)
-        k += 1
-    return n.asarray(pts)
-
-######################################################################
 def solve_quad(a, b, c):
     """Solve quadratic equation ax^2 + bx + c = 0"""
     discriminant = b**2 - 4*a*c
@@ -139,7 +56,7 @@ def airtime(angle):
     t_max = np.max(times)
     return t_max
 
-def solve():
+def generate_path_set():
     angles = np.linspace(MIN_ANGLE, MAX_ANGLE, ANGLE_SAMPLE_COUNT)
     times  = np.array([airtime(angle) for angle in angles])
 
@@ -149,20 +66,37 @@ def solve():
 
     for (i, angle) in enumerate(angles):
         x[i,:], y[i,:] = trace_path(angle, t)
-        #plt.plot(x[i,y[i,:]>=0], y[i,y[i,:]>=0], '.')
 
+    return x, y
 
-    num_points = len(y[y>=0].flat)
+def interpolate_curves(x_raw, y_raw):
+    x_interp = np.linspace(0, np.max(x_raw), X_POINTS)
 
-    points = np.zeros((2, num_points + 1))
-    points[0, 0] = 0.0
-    points[1, 0] = 0.0
-    points[0, 1:] = (x[y>=0]).flat
-    points[1, 1:] = (y[y>=0]).flat
-    plt.ion()
-    hull_pts = convex_hull(points, True)
+    y_interp = []
+    for x, y in zip(x_raw, y_raw):
+        y_interp.append(np.interp(x_interp, x, y))
+    return x_interp, np.array(y_interp)
+
+def generate_bounding_curve(x_interp, y_interp):
+    y_bound = y_interp.max(axis=0)
+
+    criteria = y_bound >= 1E-10
+    y_bound = y_bound[criteria]
+    x_bound = x_interp[criteria]
+    return x_bound, y_bound
+
+def do_solid_integration(x_bound, y_bound):
+    f = x_bound * y_bound
+    return 2*np.pi * np.trapz(f, x_bound)
+    
+def solve():
+    x_raw, y_raw = generate_path_set()
+
+    x_interp, y_interp = interpolate_curves(x_raw, y_raw)
+    x_bound, y_bound = generate_bounding_curve(x_interp, y_interp)
+    plt.plot(x_bound, y_bound, 'k-')
+    print do_solid_integration(x_bound, y_bound)
     plt.show()
-
 
 def main(argv=None):
     if argv is None:
