@@ -16,6 +16,38 @@ NOT_COMPLETED = 0
 BOX_SIZE      = 3
 PUZZLE_SIZE   = 9
 
+class PuzzleSet(object):
+    """
+    A collection of Sudoku puzzles.
+    """
+
+    def __init__(self):
+        self.puzzles = []
+
+    def read(self, filename=None, fileobj=None):
+        """Read a set of puzzles out of a file."""
+        if fileobj is not None:
+            f             = fileobj
+            need_to_close = False
+        elif filename is not None:
+            f             = open(filename, 'r')
+            need_to_close = True
+
+        while True:
+            new_puzzle = Puzzle()
+            try:
+                f.next()    # Skip "Grid XX"
+                new_puzzle.read(fileobj=f)
+            except StopIteration:
+                break
+            self.puzzles.append(new_puzzle)
+        if need_to_close:
+            f.close()
+
+    def __iter__(self):
+        for puzzle in self.puzzles:
+            yield puzzle
+        
 class Puzzle(object):
     """
     Define a Sudoku puzzle.  The goal of the puzzle is to produce a 3x3 set of
@@ -25,9 +57,9 @@ class Puzzle(object):
     """
     def __init__(self, puzzle_file=None):
         if puzzle_file is not None:
-            self.read_puzzle(puzzle_file)
+            self.read(puzzle_file)
     
-    def read_puzzle(self, puzzle_file):
+    def read(self, filename=None, fileobj=None):
         """
         Read a Sudoku puzzle in from a file.  This assumes that the puzzle
         is digitized so each row is on a separate line, and each number is
@@ -35,9 +67,15 @@ class Puzzle(object):
         solve for) are indicated by the NOT_COMPLETED value given above.
 
         """
-        f = open(puzzle_file, 'r')
+        if fileobj is not None:
+            f = fileobj
+            need_to_close = False
+        elif filename is not None:
+            f = open(filename, 'r')
+            need_to_close = True
         self.solution = self._read(f)
-        f.close()
+        if need_to_close:
+            f.close()
 
     def solve(self):
         """
@@ -64,7 +102,10 @@ class Puzzle(object):
                         self._add_solution(row, column, new_guess.item())
                     else:
                         previous_values[row, column] = new_guess
+            if iter_count % 5 == 0:
+                self.print_solution()
         print '(Required %d iterations.)' % iter_count
+
     def print_solution(self):
         """
         Pretty-print the solution.  This can be used at any state of the
@@ -80,9 +121,12 @@ class Puzzle(object):
 
     def _read(self, file):
         puzzle = []
-        for line in file:
+        lines_read = 0
+        while lines_read < 9:
+            line = file.next()
             if line.rstrip():
                 puzzle.append([int(v) for v in line.rstrip()])
+                lines_read += 1
         return np.ma.masked_equal(puzzle, NOT_COMPLETED)
 
     #------------------------------
