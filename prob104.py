@@ -18,9 +18,10 @@ def solve():
     for i, f in enumerate(fibs):
         if i % 1000 == 0:
             print i
-        s = str(f)
-        first_9 = s[:9]
-        last_9  = s[-9:]
-        if is_pandigital(first_9) and is_pandigital(last_9):
-            print 'Answer is %d' % i+1
-            return
+        if i > 329000:
+            s = str(f)
+            first_9 = s[:9]
+            last_9  = s[-9:]
+            if is_pandigital(first_9) and is_pandigital(last_9):
+                print 'Answer is %d' % (i+1)
+                return
