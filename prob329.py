@@ -30,9 +30,11 @@ def eratosthenes():
 		q += 1
 ## end of http://code.activestate.com/recipes/117119/ }}}
 
+## {{{ Generate prime numbers below a certain value
 def primes_below(n):
     sieve  = eratosthenes()
     return list(itertools.takewhile(lambda p: p<n, sieve))
+## }}}
     
 def compute_probabilities(n, state):
     """
@@ -41,15 +43,10 @@ def compute_probabilities(n, state):
 
     """
     primes_below_n = primes_below(n)
-    #print primes_below_n
-    num_primes = len(primes_below(n))
-    #print num_primes, n
     
-    prime_indices    = [i for i in range(n) if i+1 in primes_below_n]
-    notprime_indices = [i for i in range(n) if i+1 not in primes_below_n]
+    prime_indices    = np.array([i+1 in primes_below_n for i in range(n)])
+    notprime_indices = np.array([i+1 not in primes_below_n for i in range(n)])
 
-    #print prime_indices
-    #print notprime_indices
     # Conditional probabilities for getting a P or an N if the frog is
     # on a prime or non-prime square
     prob_P_prime    = fractions.Fraction(2, 3)
@@ -57,8 +54,10 @@ def compute_probabilities(n, state):
     prob_P_notprime = fractions.Fraction(1, 3)
     prob_N_notprime = fractions.Fraction(2, 3)
 
+    assert(np.sum(state) == 1)
     prob_prime    = np.sum(state[prime_indices])
     prob_notprime = np.sum(state[notprime_indices])
+    assert(prob_prime + prob_notprime == 1)
 
     prob_P = prob_P_prime*prob_prime + prob_P_notprime*prob_notprime
     prob_N = prob_N_prime*prob_prime + prob_N_notprime*prob_notprime
@@ -76,31 +75,50 @@ def make_transition_matrix(n):
 
     return np.diag(upper_diag, k=1) + np.diag(lower_diag, k=-1)
 
-def make_initial_condition(n):
-    x = [fractions.Fraction(1, n) for i in range(n)]
+def make_initial_condition(n, nonzero=None):
+    if nonzero is None:
+        x = [fractions.Fraction(1, n) for i in range(n)]
+    else:
+        x = [fractions.Fraction(0, 1) for i in range(n)]
+        x[nonzero] = fractions.Fraction(1, 1)
     return np.array(x)
+
+def test_evolution():
+    board_size = 10
+    A = make_transition_matrix(board_size)
+    x = make_initial_condition(board_size)
+    print A[:,:]
+    for i in range(10):
+        print x
+        x = np.dot(A, x)
+    
 
 def solve():
     board_size = 500
 
     A = make_transition_matrix(board_size)
     x = make_initial_condition(board_size)
-    #outcome = 'PPPPNNPPPNPPNPN' 
-    outcome = 'PPPPNNPP'
+    outcome = 'PPPPNNPPPNPPNPN' 
     prob = {}
     p = fractions.Fraction(1, 1)
+    import matplotlib.pyplot as plt
+    croak_result = ''
     for croak in outcome:
         prob['P'], prob['N'] = compute_probabilities(board_size, x)
+        print 'P(%s) = %s' % (croak, prob[croak])
         p *= prob[croak]
+        croak_result += croak
+        print 'P(%s) = %s' % (croak_result, p)
+        plt.plot(x)
         x = np.dot(A, x)
-    print p
-        
+    plt.show()
 
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
 
-    solve()
+    #solve()
+    test_evolution()
 
 if __name__ == "__main__":
     main()
