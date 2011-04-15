@@ -66,8 +66,12 @@ def compute_probabilities(n, state):
     return prob_P, prob_N
 
 def make_transition_matrix(n):
+
+    # Off-diagonal means it's 1 shorter than the main diagonal
     diag = [fractions.Fraction(1, 2) for i in range(n-1)]
 
+    # Upper diagonal is .5 .5 .5 .5 ... 1.
+    # Lower diagonal is 1. .5 .5 .5 ... .5
     upper_diag     = diag[:]
     upper_diag[-1] = fractions.Fraction(1, 1)
     lower_diag     = diag[:]
@@ -83,25 +87,15 @@ def make_initial_condition(n, nonzero=None):
         x[nonzero] = fractions.Fraction(1, 1)
     return np.array(x)
 
-def test_evolution():
-    board_size = 10
-    A = make_transition_matrix(board_size)
-    x = make_initial_condition(board_size)
-    print A[:,:]
-    for i in range(10):
-        print x
-        x = np.dot(A, x)
-    
-
-def solve():
+def solve(outcome='PPPPNNPPPNPPNPN'):
     board_size = 500
 
     A = make_transition_matrix(board_size)
     x = make_initial_condition(board_size)
-    outcome = 'PPPPNNPPPNPPNPN' 
+    #outcome = 
+    #outcome = 'PP'
     prob = {}
     p = fractions.Fraction(1, 1)
-    import matplotlib.pyplot as plt
     croak_result = ''
     for croak in outcome:
         prob['P'], prob['N'] = compute_probabilities(board_size, x)
@@ -109,16 +103,113 @@ def solve():
         p *= prob[croak]
         croak_result += croak
         print 'P(%s) = %s' % (croak_result, p)
-        plt.plot(x)
         x = np.dot(A, x)
-    plt.show()
+    print float(p)
 
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
 
-    #solve()
-    test_evolution()
+    solve()
+
+
+#### Monte Carlo Simulation
+
+import random
+
+class Frog:
+
+    # The frog croaks the correct prime/nonprime with probability 2/3
+    CROAK_ON_PRIME    = ('P', 'P', 'N')
+    CROAK_ON_NONPRIME = ('N', 'N', 'P')
+
+    def __init__(self, board_size=500):
+        self.primes   = primes_below(board_size)
+        self.position = random.randrange(board_size)    
+
+        # Each square has a possible move to the adjacent squares, but
+        # the endpoints only have a single possible move.
+        self.possible_moves     = [(-1, +1) for _ in range(board_size)]
+        self.possible_moves[0]  = (+1,)
+        self.possible_moves[-1] = (-1,)
+
+    def jump(self):
+        move = random.choice(self.possible_moves[self.position])
+        self.position += move
+
+    def croak(self):
+        square_num = self.position + 1
+        if square_num in self.primes:
+            return random.choice(Frog.CROAK_ON_PRIME)
+        else:
+            return random.choice(Frog.CROAK_ON_NONPRIME)
+
+    def __iter__(self):
+        while True:
+            yield self.croak()
+            self.jump()
+
+# Serial Version
+def run(ref_string, num_trials=50000):
+    results = [trial(ref_string) for _ in xrange(num_trials)]
+    num_correct = results.count(True)
+    prob_correct = float(num_correct) / float(num_trials)
+    print ('%d correct out of %d trials: p(%s) = %f' % 
+           (num_correct, num_trials, ref_string, prob_correct))
+    return prob_correct 
+
+def trial(croak_string):
+    frog = Frog()
+    for (ref_croak , croak) in zip(croak_string, frog):
+        if ref_croak != croak:
+            return False
+    return True
+
+# Parallel Version
+import multiprocessing
+import Queue
+
+def run_parallel(ref_string, num_trials=50000):
+    result_queue = multiprocessing.Queue()
+
+    pool = multiprocessing.Pool(initializer=parallel_init, 
+                                initargs=(result_queue,))
+    ref_strings = (ref_string for _ in xrange(num_trials)) 
+    pool.imap(parallel_trial, ref_strings, chunksize=100)
+    pool.close()
+    results = process_queue(result_queue)
+    pool.join()
+
+    num_correct = results.count(True)
+    prob_correct = float(num_correct) / float(num_trials)
+    print ('%d correct out of %d trials: p(%s) = %f' % 
+           (num_correct, num_trials, ref_string, prob_correct))
+    return prob_correct 
+
+def process_queue(q):
+    results = []
+    try:
+        while True:
+            results.append(q.get(block=True, timeout=0.5))
+    except Queue.Empty:
+        pass
+    return results
+
+def parallel_trial(croak_string):
+    result = trial(croak_string)
+    parallel_trial.q.put(result)
+    
+def parallel_init(q):
+    parallel_trial.q = q
 
 if __name__ == "__main__":
-    main()
+    #outcome = 'PPPPNNPPPNPPNPN' 
+    outcome = 'PP' 
+    #probs = [run(outcome, num_trials=50000) for _ in range(10)]
+    probs = [run_parallel(outcome, num_trials=500000) for _ in range(500)]
+    total_prob = sum(probs) / len(probs)
+    print total_prob
+    
+    solve(outcome='PP') 
+    #main()
+
