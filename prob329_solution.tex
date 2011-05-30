@@ -1,0 +1,109 @@
+\documentclass{article}
+
+\usepackage{fullpage}
+\usepackage{amsmath}
+\usepackage{mdwlist}
+\usepackage{minted}
+
+\title{Project Euler Problem 329 - Solution}
+\author{Tim Whitcomb}
+\date{\today}
+
+\begin{document}
+	\maketitle
+
+\section{Problem}
+
+Susan has a prime frog.  Her frog is jumping around over 500 squares numbered 1 to 500.  He can only jump one square to the left or to the right, with equal probability, and he cannot jump outside the range [1;500].  If it lands at either end, it automatically jumps to the only available square on the next move.
+
+When he is on a square with a prime number on it, he croaks $P$ (PRIME) with probability $2/3$ or $N$ (NOT PRIME) with probability $1/3$ just before jumping to the next square.  When he is on a square with a number on it that is not a prime he croaks $P$ with probabiltiy $1/3$ or $N$ with probability $2/3$ just before jumping ot the next square.
+
+Given that the frog's starting position is random witht he same probability for every square, and given that she listens to his first 15 croaks, what is the probability that she hears the sequence ``PPPPNNPPPNPPNPN''?
+
+Give your answer as a fraction $p/q$ in reduced form.
+\section{Solution}
+
+The frog is jumping on a board that looks like
+\begin{equation}
+\left[ \begin{array}{cccccccc} 1 & 2 & 3 & 4 & 5 & \cdots & 499 & 500 \end{array} \right].
+\end{equation}
+For most squares, the frog jumps left or right with equal probability (i.e. 1/2), so the probability of the frog being on square $n$ on the $i$th turn is given by
+\begin{equation}
+	P(n_i) = \frac{1}{2}P((n-1)_{i-1}) + \frac{1}{2}P((n+1)_{i-1}).
+\end{equation}
+If the frog is at the endpoints, then it jumps to the only available square for the next move:
+\begin{eqnarray}
+	P(2_i) & = & \frac{1}{2}P(3_{i-1}) + 1P(1_{i-1}), \\
+	P(499_i) & = & \frac{1}{2}P(498_{i-1}) + 1P(500_{i-1}),
+\end{eqnarray}
+and the transition to the endpoints is also slightly different:
+\begin{eqnarray}
+	P(1_i) & = & \frac{1}{2}P(2_{i-1}) \\
+	P(500_i) & = & \frac{1}{2}P(499_{i-1}).
+\end{eqnarray}
+Assuming that the vector $\mathbf{x}$ is a probability (column) vector for the frog's position, the transition can be written as
+\begin{equation}
+	\mathbf{x}_i = \mathbf{\mathsf{T}}\mathbf{x}_{i-1},
+\end{equation}
+where the transition matrix $\mathbf{\mathsf{T}}$ is a bidiagonal matrix, where the upper and lower diagonal consist of $1/2$ with $1$ at the beginning and end, respectively.  For a board of size 5, this matrix looks like
+\begin{equation}
+	\mathbf{\mathsf{T}} = \left[
+	\begin{array}{ccccc}
+		0 & 1/2 & 0 & 0 & 0 \\
+		1 & 0 & 1/2 & 0 & 0 \\
+		0 & 1/2 & 0 & 1/2 & 0 \\
+		0 & 0 & 1/2 & 0 & 1 \\
+		0 & 0 & 0 & 1/2 & 0
+	\end{array}
+	\right].
+\end{equation}
+Note that $\mathbf{\mathsf{T}}$ is a stochastic matrix, with each column summing to 1.
+
+The probabilities for each croak are
+\begin{eqnarray}
+	P(P | on prime) & = & 2/3, \\
+	P(P | not on prime) & = & 1/3, \\
+	P(N | on prime) & = & 1/3, \\
+	P(N | not on prime) & = & 2/3.
+\end{eqnarray}
+For step $i$, the probability of hearing $P$ or $N$ is:
+\begin{eqnarray}
+	P(P)_i & = & P(P | on prime)P(on prime)_i + P(P | not on prime)P(not on prime)_i, \\
+	P(N)_i & = & P(N | on prime)P(on prime)_i + P(N | not on prime)P(not on prime)_i.
+\end{eqnarray}
+While the conditional probabilities are constant, the transition state is \emph{not}.  This means that $P(on prime)$ or $P(not on prime)$ depends on the iteration.  For a given state $\mathbf{x}_i$,
+\begin{eqnarray}
+	P(on prime)_i & = & \sum_{j prime} x_i(j) \\
+	P(not on prime)_i & = & \sum_{j not prime} x_i(j)
+\end{eqnarray}
+where $x(j)$ is the $j$th component of $\mathbf{x}$.  The components of $\mathbf{x}$ are probabilities, so they can be added.
+
+The frog's starting position is random, with equal probability for each square:
+\begin{equation}
+	\mathbf{x}_0 = \frac{1}{500} \mathbf{1}
+\end{equation}
+with $\mathbf{1}$ as a length-500 vector of all ones.  The probability that the sequence ``PPPPNNPPPNPPNPN'' is emitted by the frog is
+\begin{equation}
+	\nonumber
+\pageref{}(P)_0 P(P)_1 P(P)_2 P(P)_3 P(N)_4 P(N)_5 P(P)_6 P(P)_7 P(P)_8 P(N)_9 P(P)_{10} P(P)_{11} P(N)_{12} P(P)_{13} P(N)_{14}.
+\end{equation}
+Since there are 95 primes below 500,
+\begin{equation}
+	P(P)_0 = \frac{2}{3}\frac{95}{500} + \frac{1}{3}\frac{405}{500} = \frac{190 + 405}{1500} = \frac{595}{1500} = \frac{119}{300}.
+\end{equation}
+
+The proposed algorithm is:
+\begin{enumerate*}
+	\item Generate initial probability distribution vector and transition matrix
+	\item Fetch desired outcome (P or N)
+	\item Generate $P(P)$ and $P(N)$ for the given iteration
+	\item Multiply an accumulator by the appropriate probability ($P(P)$ or $P(N)$)
+	\item Transition the position probabilities to their next iteration
+	\item Fetch next desired outcome and continue processing
+\end{enumerate*}
+
+The issue is that while the initial probability, $P(P)_0$ is correct, subsequent iterations grow rapidly.  The answer box is limited to 30 characters, which is much shorter than the ``answer'' at later iterations.  Is the error in the reasoning above or in the attached code?
+
+\inputminted[]{python}{prob329.py}
+
+\end{document}
